@@ -1,38 +1,42 @@
 import React from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
+import { Tabs, Tab } from '@mui/material';
 
 const Layout = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { isDark, toggleDarkMode } = useTheme();
 
-  const navItems = [
-    { path: '/', label: 'Home' },
-    { path: '/best-method', label: 'Best Method' },
-    { path: '/calculator', label: 'Full Calculator' },
-    { path: '/quote', label: 'Get a Quote' },
-  ];
+  const handleTabChange = (event, newValue) => {
+    navigate(newValue);
+  };
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-[#0F172A]' : 'bg-[#F1F5F9]'} transition-colors`}>
       <nav className={`${isDark ? 'bg-[#1E293B]' : 'bg-[#1E293B]'} shadow-lg`}>
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex h-16 items-center justify-between">
-            <div className="flex space-x-4">
-              {navItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors
-                    ${location.pathname === item.path
-                      ? 'bg-[#00E5FF] text-[#1E293B]'
-                      : `text-[#F1F5F9] hover:bg-[#64748B] hover:text-[#F1F5F9] ${isDark ? 'hover:bg-[#334155]' : ''}`
-                    }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
+            <Tabs 
+              value={location.pathname} 
+              onChange={handleTabChange}
+              textColor="inherit"
+              indicatorColor="secondary"
+              sx={{ 
+                '& .MuiTab-root': { 
+                  color: '#F1F5F9',
+                  '&.Mui-selected': { color: '#00E5FF' }
+                }
+              }}
+            >
+              <Tab label="Home" value="/" />
+              <Tab label="Best Method" value="/best-method" />
+              <Tab label="Full Calculator" value="/calculator" />
+              <Tab label="Get a Quote" value="/quote" />
+              <Tab label="PSA Lookup" value="/psa-lookup" />
+              <Tab label="Batch Lookup" value="/psa-batch-lookup" />
+            </Tabs>
+            
             <button
               onClick={toggleDarkMode}
               className="p-2 rounded-md text-[#F1F5F9] hover:bg-[#64748B] transition-colors"
