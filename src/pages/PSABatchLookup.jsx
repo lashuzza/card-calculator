@@ -56,6 +56,7 @@ export default function PSABatchLookup() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify({
           cert_input: certInput,
@@ -63,15 +64,16 @@ export default function PSABatchLookup() {
         }),
       });
 
-      const data = await response.json();
-      
       if (!response.ok) {
-        throw new Error(data.detail || 'Failed to fetch data');
+        const errorData = await response.text();
+        throw new Error(errorData || 'Failed to fetch data');
       }
 
+      const data = await response.json();
       setResults(data);
     } catch (err) {
       setError(err.message);
+      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
@@ -98,6 +100,7 @@ export default function PSABatchLookup() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
           },
           body: JSON.stringify({
             image: base64Image,
@@ -118,7 +121,8 @@ export default function PSABatchLookup() {
         });
 
         if (!response.ok) {
-          throw new Error(await response.text());
+          const errorData = await response.text();
+          throw new Error(errorData || 'Failed to process image');
         }
 
         const data = await response.json();
@@ -128,6 +132,7 @@ export default function PSABatchLookup() {
       reader.readAsDataURL(file);
     } catch (err) {
       setError(err.message);
+      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
