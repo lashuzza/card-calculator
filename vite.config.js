@@ -10,4 +10,8 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  define: {
+    // Hardcode the API URL since we can't use env vars in Netlify free tier
+    'process.env.VITE_API_URL': JSON.stringify('https://card-calculator.onrender.com')
+  }
 })
