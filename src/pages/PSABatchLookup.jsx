@@ -20,7 +20,8 @@ import {
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import html2pdf from 'html2pdf.js';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://card-calculator.onrender.com';
+// Hardcode the API URL since we can't use env variables in Netlify free tier
+const API_URL = 'https://card-calculator.onrender.com';
 
 export default function PSABatchLookup() {
   const [inputMethod, setInputMethod] = useState(0);
