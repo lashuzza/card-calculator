@@ -16,25 +16,20 @@ from openai import OpenAI
 # Load environment variables from .env file
 load_dotenv()
 
-# Verify OpenAI API key is set
-if not os.getenv('OPENAI_API_KEY'):
-    print("Warning: OPENAI_API_KEY not found in environment variables")
+# Get environment-specific variables
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+PSA_API_TOKEN = os.getenv("PSA_API_TOKEN")
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "").split(",")
 
 app = FastAPI()
 
-# Add CORS middleware with more permissive settings
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174"
-    ],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
 )
 
 class CertRequest(BaseModel):
@@ -59,13 +54,10 @@ def get_psa_data(cert_number):
     """Fetch data from PSA API based on cert number"""
     print(f"Looking up PSA cert #{cert_number}")
     
-    # PSA API access token
-    access_token = "my6Rv4D-AdLXMa1E-uxBnXWN4hCgtzSBuhI1xT4AeyVbuz2CC17zeytB5XTtuEgvP4t9cg5N_t2vORhebuiaddmSRKfR5nuFtvCixc8ZyZ134cRSeSgwuSBg6oL-_FBtO0fazbQRFna30EL2Rkvtryo_sx-cwEsg0CyYFtSXnO4jRELuqt3XXVdnL-xbvMEyygEYcH9Q4H-ItzrAcKScasOsWxaquww1EYMBogvn9q4WcMEpE1My1sTpkBvarDe4n1yeOWNTPl9nA-dB7aOpR3XtnJGF0pyRSPt1tCmpGglpXLiB"
-    
     url = f"https://api.psacard.com/publicapi/cert/GetByCertNumber/{cert_number}"
     headers = {
-        'Authorization': f'Bearer {access_token}',
-        'Accept': 'application/json'
+        "Authorization": f"Bearer {PSA_API_TOKEN}",
+        "Content-Type": "application/json"
     }
     
     try:
@@ -85,6 +77,7 @@ def get_psa_data(cert_number):
                 print(f"Found PSACert data: {json.dumps(cert_data, indent=2)}")
                 
                 if isinstance(cert_data, dict):
+                    # Extract all available fields
                     card_data.update({
                         'year': str(cert_data.get('Year', '')),
                         'brand': cert_data.get('Brand', ''),
@@ -92,8 +85,32 @@ def get_psa_data(cert_number):
                         'grade': cert_data.get('Grade', ''),
                         'player': cert_data.get('Subject', ''),
                         'sport': cert_data.get('Sport', ''),
-                        'set': cert_data.get('Set', '')
+                        'set': cert_data.get('Set', ''),
+                        'card_number': cert_data.get('CardNumber', ''),
+                        'variety': cert_data.get('Variety', ''),
+                        'qualifier': cert_data.get('Qualifier', ''),
+                        'grade_suffix': cert_data.get('GradeSuffix', ''),
+                        'insert_type': cert_data.get('InsertType', ''),
+                        'parallel_type': cert_data.get('ParallelType', ''),
+                        'language': cert_data.get('Language', 'English'),
                     })
+                    
+                    # Extract rarity/variant information
+                    variants = []
+                    if cert_data.get('InsertType'):
+                        variants.append(cert_data['InsertType'])
+                    if cert_data.get('ParallelType'):
+                        variants.append(cert_data['ParallelType'])
+                    if cert_data.get('Variety'):
+                        variants.append(cert_data['Variety'])
+                    card_data['variants'] = variants
+                    
+                    # Clean up card name if it contains variant information
+                    card_name = card_data['card_name']
+                    for variant in variants:
+                        if variant and variant in card_name:
+                            card_name = card_name.replace(variant, '').strip()
+                    card_data['card_name'] = card_name
             else:
                 print("No PSACert data found in response")
                 # Try to extract data from root level
@@ -104,7 +121,8 @@ def get_psa_data(cert_number):
                     'grade': data.get('Grade', ''),
                     'player': data.get('Subject', ''),
                     'sport': data.get('Sport', ''),
-                    'set': data.get('Set', '')
+                    'set': data.get('Set', ''),
+                    'variants': []
                 })
             
             print(f"Extracted card data: {json.dumps(card_data, indent=2)}")
@@ -117,73 +135,133 @@ def get_psa_data(cert_number):
         return None
 
 def generate_ebay_listing(card_data):
-    """Generate eBay listing from card data"""
+    """Generate eBay listing from card data with structured format"""
     print(f"Generating eBay listing for card data: {json.dumps(card_data, indent=2)}")
     
     if not card_data:
         print("No card data provided")
         return None
-        
-    # Create title - remove duplicates and clean up
+
+    # Initialize title components following the suggested format:
+    # [Grading] [Card Name] [Card Variant/Rarity] [Set Name] [Set Number] [Language] [Franchise] [Year]
+    title_components = {
+        'grading': '',  # PSA Grade
+        'card_name': card_data.get('card_name', '').strip(),
+        'variant': [],  # Will hold variant/rarity information
+        'set_name': card_data.get('set', '').strip(),
+        'set_number': card_data.get('card_number', '').strip(),
+        'language': card_data.get('language', 'English'),
+        'franchise': 'Pokemon' if 'POKEMON' in card_data.get('brand', '').upper() else card_data.get('sport', '').strip(),
+        'year': card_data.get('year', '').strip(),
+        'notes': []
+    }
+
+    # Build grading component
+    grade_parts = []
+    if card_data.get('grade'):
+        grade_parts.append(f"PSA {card_data['grade']}")
+    if card_data.get('qualifier'):
+        grade_parts.append(card_data['qualifier'])
+    if card_data.get('grade_suffix'):
+        grade_parts.append(card_data['grade_suffix'])
+    title_components['grading'] = ' '.join(grade_parts)
+
+    # Extract variant/rarity information
+    variants = []
+    if 'MASTER BALL' in card_data.get('brand', ''):
+        variants.append('MASTER BALL')
+    if card_data.get('variety'):
+        variants.append(card_data['variety'])
+    if 'REVERSE HOLO' in card_data.get('brand', ''):
+        variants.append('REVERSE HOLO')
+    if card_data.get('insert_type'):
+        variants.append(card_data['insert_type'])
+    if card_data.get('parallel_type'):
+        variants.append(card_data['parallel_type'])
+    
+    # Clean up variants
+    title_components['variant'] = [v.strip() for v in variants if v and v.strip()]
+
+    # Build title following the specified order
     title_parts = []
-    if 'grade' in card_data and card_data['grade']:
-        title_parts.append(f"PSA {card_data['grade']}")
-    if 'year' in card_data and card_data['year']:
-        title_parts.append(card_data['year'])
-    if 'brand' in card_data and card_data['brand']:
-        title_parts.append(card_data['brand'].strip())
-    if 'card_name' in card_data and card_data['card_name']:
-        # Only add card_name if it's not already part of the brand
-        card_name = card_data['card_name'].strip()
-        if card_name.upper() not in card_data['brand'].upper():
-            title_parts.append(card_name)
+    if title_components['grading']:
+        title_parts.append(title_components['grading'])
+    if title_components['card_name']:
+        title_parts.append(title_components['card_name'])
+    if title_components['variant']:
+        title_parts.extend(title_components['variant'])
+    if title_components['set_number']:
+        title_parts.append(title_components['set_number'])
+    if title_components['set_name']:
+        title_parts.append(title_components['set_name'])
+    if title_components['language'] != 'English':
+        title_parts.append(title_components['language'])
+    if title_components['franchise']:
+        title_parts.append(title_components['franchise'])
+    if title_components['year']:
+        title_parts.append(title_components['year'])
     
-    # Remove any empty strings and join with spaces
-    title = " ".join([part for part in title_parts if part])
-    print(f"Generated title: {title}")
+    title = " ".join(title_parts)
     
-    # Create description with better formatting
+    # Create enhanced description with better formatting and sections
     description = [
         f"# {title}",
-        "\n## Card Details",
+        "\n## Card Details"
     ]
     
     details = []
-    if 'cert_number' in card_data and card_data['cert_number']:
-        details.append(f"• PSA Certificate Number: {card_data['cert_number']}")
-    if 'grade' in card_data and card_data['grade']:
-        details.append(f"• PSA Grade: {card_data['grade']}")
-    if 'year' in card_data and card_data['year']:
+    if card_data.get('cert_number'):
+        details.append(f"• PSA Certificate: {card_data['cert_number']}")
+    if card_data.get('grade'):
+        grade_info = f"• PSA Grade: {card_data['grade']}"
+        if card_data.get('qualifier'):
+            grade_info += f" ({card_data['qualifier']})"
+        if card_data.get('grade_suffix'):
+            grade_info += f" {card_data['grade_suffix']}"
+        details.append(grade_info)
+    if card_data.get('card_name'):
+        details.append(f"• Card Name: {card_data['card_name']}")
+    if card_data.get('card_number'):
+        details.append(f"• Card Number: {card_data['card_number']}")
+    if card_data.get('year'):
         details.append(f"• Year: {card_data['year']}")
-    if 'brand' in card_data and card_data['brand']:
-        details.append(f"• Product: {card_data['brand'].strip()}")
-    if 'card_name' in card_data and card_data['card_name']:
-        details.append(f"• Card: {card_data['card_name'].strip()}")
-    if 'player' in card_data and card_data['player'] and card_data['player'] != card_data['card_name']:
-        details.append(f"• Player: {card_data['player'].strip()}")
-    if 'sport' in card_data and card_data['sport']:
-        details.append(f"• Sport: {card_data['sport']}")
-    if 'set' in card_data and card_data['set']:
+    if card_data.get('brand'):
+        details.append(f"• Brand: {card_data['brand']}")
+    if card_data.get('set'):
         details.append(f"• Set: {card_data['set']}")
+    if title_components['variant']:
+        details.append(f"• Variant: {', '.join(title_components['variant'])}")
+    if card_data.get('language') and card_data['language'] != 'English':
+        details.append(f"• Language: {card_data['language']}")
     
     description.extend(details)
     
+    # Add verification and condition sections
     description.extend([
-        "\n## Authentication",
+        "\n## Authentication & Grading",
+        f"• PSA Graded {card_data.get('grade', 'N/A')}" + 
+        (f" ({card_data['qualifier']})" if card_data.get('qualifier') else "") +
+        (f" {card_data['grade_suffix']}" if card_data.get('grade_suffix') else ""),
         f"• Verify this card at PSA's website: https://www.psacard.com/cert/{card_data['cert_number']}",
         "\n## Shipping & Handling",
         "• FREE secure shipping with tracking (United States only)",
-        "• Professional packaging - Card will be shipped in a card saver between cardboard",
-        "• Full insurance included",
+        "• Professional packaging with card saver and bubble mailer",
+        "• Full insurance included for your protection",
+        "\n## Seller Notes",
+        "• US-based seller with excellent feedback",
+        "• Fast shipping - typically ships within 1 business day",
+        "• Cards are stored in smoke-free, climate-controlled environment",
         "\n## Return Policy",
         "• 30-day returns accepted if item is not as described",
-        "• Buyer pays return shipping"
+        "• Buyer pays return shipping",
+        "• Please contact us before returning"
     ])
     
     listing = {
         "title": title,
         "description": "\n".join(description)
     }
+    
     print(f"Generated listing: {json.dumps(listing, indent=2)}")
     return listing
 
@@ -240,16 +318,16 @@ async def process_cert_numbers(cert_input: str) -> List[str]:
     # Remove duplicates while preserving order
     return list(dict.fromkeys(cert_numbers))
 
-async def process_image_with_openai(image_base64: str, prompt: str) -> List[str]:
-    """Process image with OpenAI Vision API"""
+async def process_image_with_openai(image_data: str, prompt: str):
+    client = OpenAI(api_key=OPENAI_API_KEY)
     try:
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f"Bearer {os.getenv('OPENAI_API_KEY')}"
+            'Authorization': f"Bearer {OPENAI_API_KEY}"
         }
         
         # Construct the image URL - either use the base64 or a direct URL
-        image_url = image_base64 if image_base64.startswith('http') else f"data:image/jpeg;base64,{image_base64}"
+        image_url = image_data if image_data.startswith('http') else f"data:image/jpeg;base64,{image_data}"
         
         default_prompt = """You are a helpful assistant specialized in identifying PSA certification numbers from images.
         Your task is to analyze the image and extract all PSA certification numbers.

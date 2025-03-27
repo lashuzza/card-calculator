@@ -29,3 +29,5 @@ card-calculator/
 psa_ebay_listener/
 card-calculator/
 psa_ebay_listener/
+.env*
+!.env.example

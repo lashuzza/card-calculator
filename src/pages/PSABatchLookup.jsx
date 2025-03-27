@@ -20,6 +20,8 @@ import {
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import html2pdf from 'html2pdf.js';
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 export default function PSABatchLookup() {
   const [inputMethod, setInputMethod] = useState(0);
   const [certInput, setCertInput] = useState('');
@@ -49,7 +51,7 @@ export default function PSABatchLookup() {
     setResults(null);
 
     try {
-      const response = await fetch('http://localhost:8000/api/psa/lookup/batch', {
+      const response = await fetch(`${API_URL}/api/psa/lookup/batch`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -91,7 +93,7 @@ export default function PSABatchLookup() {
       reader.onloadend = async () => {
         const base64Image = reader.result.split(',')[1];
         
-        const response = await fetch('http://localhost:8000/api/psa/lookup/image', {
+        const response = await fetch(`${API_URL}/api/psa/lookup/image`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -155,7 +157,7 @@ export default function PSABatchLookup() {
 
   const handleSubmitForReview = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/psa/submit', {
+      const response = await fetch(`${API_URL}/api/psa/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
