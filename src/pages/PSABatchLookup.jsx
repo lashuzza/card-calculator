@@ -20,7 +20,7 @@ import {
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import html2pdf from 'html2pdf.js';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'https://card-calculator.onrender.com';
 
 export default function PSABatchLookup() {
   const [inputMethod, setInputMethod] = useState(0);
@@ -116,12 +116,11 @@ export default function PSABatchLookup() {
           }),
         });
 
-        const data = await response.json();
-        
         if (!response.ok) {
-          throw new Error(data.detail || 'Failed to process image');
+          throw new Error(await response.text());
         }
 
+        const data = await response.json();
         setResults(data);
       };
       
@@ -177,7 +176,6 @@ export default function PSABatchLookup() {
         throw new Error(data.detail || 'Failed to submit');
       }
 
-      // Show success message with tracking number
       setError(null);
       alert(`Submission successful! Your tracking number is: ${data.tracking_number}`);
       setOpenSubmitDialog(false);
